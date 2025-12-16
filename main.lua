@@ -106,3 +106,8 @@ function Channel:recv()
 	table.insert(self.recvq, co)
 	return coroutine.yield("wait_chan")
 end
+
+return {
+	Scheduler = Scheduler,
+	Channel = Channel,
+}
