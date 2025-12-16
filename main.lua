@@ -58,7 +58,9 @@ function Scheduler:_next_timer_dt()
 end
 
 function Scheduler:run()
-	while true do
+	self._running = true
+
+	while self._running do
 		self:_wake_due_timers()
 
 		if #self.ready > 0 then
@@ -66,13 +68,17 @@ function Scheduler:run()
 			local co, args = item[1], item[2]
 			self:_resume(co, args)
 		else
-			-- nada listo: cedemos al motor (NO congelar)
-			if #self.timers == 0 then break end
+			-- NO salir: quedarte esperando trabajo
 			local dt = self:_next_timer_dt()
-			task.wait(dt) -- <- clave
+			task.wait(dt or 0.03) -- si no hay timers, duerme poquito y sigue
 		end
 	end
 end
+
+function Scheduler:stop()
+	self._running = false
+end
+
 
 -- =========================
 -- Channel simple
