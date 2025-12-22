@@ -105,16 +105,15 @@ function Channel:send(v)
 end
 
 function Channel:recv()
-	local v = self.buf[1]
-	if v ~= nil then
-		self.buf[1] = nil
-		return v
-	end
+    if #self.buf > 0 then
+        return table.remove(self.buf, 1) -- <-- CAMBIO
+    end
 
-	local co = coroutine.running()
-	table.insert(self.recvq, co)
-	return coroutine.yield("wait_chan")
+    local co = coroutine.running()
+    table.insert(self.recvq, co)
+    return coroutine.yield("wait_chan")
 end
+
 
 
 return {
