@@ -68,9 +68,8 @@ function Scheduler:run()
 			local co, args = item[1], item[2]
 			self:_resume(co, args)
 		else
-			-- NO salir: quedarte esperando trabajo
 			local dt = self:_next_timer_dt()
-			task.wait(dt or 0.03) -- si no hay timers, duerme poquito y sigue
+			task.wait(dt or 0.03)
 		end
 	end
 end
@@ -81,7 +80,7 @@ end
 
 
 -- =========================
--- Channel simple
+-- Channel "último valor" (buffer de 1, sobrescribe)
 -- =========================
 local Channel = {}
 Channel.__index = Channel
@@ -89,32 +88,51 @@ Channel.__index = Channel
 function Channel.new(sched)
 	return setmetatable({
 		sched = sched,
-		buf = {},
-		recvq = {},
+
+		-- en vez de buf = {}, usamos 1 slot
+		hasValue = false,
+		value = nil,
+
+		recvq = {}, -- cola de coroutines esperando
 	}, Channel)
 end
 
+-- send: si hay alguien esperando, entrégale DIRECTO.
+-- si no, guarda SOLO el más reciente (sobrescribe).
 function Channel:send(v)
 	if #self.recvq > 0 then
 		local rco = table.remove(self.recvq, 1)
 		table.insert(self.sched.ready, {rco, {v}})
 		return true
 	end
-	table.insert(self.buf, v)
+
+	self.value = v
+	self.hasValue = true
 	return true
 end
 
+-- recv: si hay valor guardado, dalo y vacía el slot.
+-- si no, espera.
 function Channel:recv()
-    if #self.buf > 0 then
-        return table.remove(self.buf, 1) -- <-- CAMBIO
-    end
+	if self.hasValue then
+		self.hasValue = false
+		local v = self.value
+		self.value = nil
+		return v
+	end
 
-    local co = coroutine.running()
-    table.insert(self.recvq, co)
-    return coroutine.yield("wait_chan")
+	local co = coroutine.running()
+	table.insert(self.recvq, co)
+	return coroutine.yield("wait_chan")
 end
 
-
+-- opcional: "peek" sin consumir
+function Channel:peek()
+	if self.hasValue then
+		return self.value
+	end
+	return nil
+end
 
 return {
 	Scheduler = Scheduler,
